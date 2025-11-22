@@ -252,10 +252,14 @@ int send_frame_head(int fd,frame_head* head)
     return 0;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    int ser_fd = passive_server(4444,20);
-
+    if (argc < 2) {
+        printf("Usage: %s <port>\n", argv[0]);
+        return 1;
+    }
+    int port = atoi(argv[1]);                                                                                                                                                                 
+    int ser_fd = passive_server(port, 20);
 
     struct sockaddr_in client_addr;
     socklen_t addr_length = sizeof(client_addr);
