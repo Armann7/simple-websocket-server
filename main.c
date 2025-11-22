@@ -276,8 +276,7 @@ int main(int argc, char *argv[])
 
     shakehands(conn);
 
-    int count = 10;
-    while (count--)
+    while (1)
     {
         frame_head head;
         int rul = recv_frame_head(conn, &head);
