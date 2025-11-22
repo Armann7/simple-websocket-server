@@ -1,2 +1,2 @@
 #pragma once
-extern int passive_server(int port,int queue);
+extern int passive_server(int port, int queue);
