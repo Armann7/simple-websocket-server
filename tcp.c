@@ -1,6 +1,7 @@
 #include <sys/socket.h>
 #include <stdio.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
 
@@ -12,8 +13,13 @@ int passive_server(int port, int queue)
     {
         perror("setsockopt");
         exit(1);
-    } 
-    
+    }
+    if (setsockopt(server_sockfd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on)) == -1)
+    {
+        perror("setsockopt");
+        exit(1);
+    }
+
     struct sockaddr_in server_sockaddr;
     server_sockaddr.sin_family = AF_INET;
     server_sockaddr.sin_port = htons(port);
