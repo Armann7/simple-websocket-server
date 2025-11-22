@@ -273,6 +273,7 @@ int main(int argc, char *argv[])
     struct sockaddr_in client_addr;
     socklen_t addr_length = sizeof(client_addr);
     int conn = accept(ser_fd, (struct sockaddr *)&client_addr, &addr_length);
+    int ping_counter = 0;
 
     shakehands(conn);
 
@@ -282,20 +283,20 @@ int main(int argc, char *argv[])
         int rul = recv_frame_head(conn, &head);
         if (rul < 0)
             break;
-        printf("fin=%d, opcode=0x%X, mask=%d, payload_len=%llu\n", head.fin, head.opcode, head.mask, head.payload_length);
+        printf("------------------       fin=%d, opcode=0x%X, mask=%d, payload_len=%llu\n", head.fin, head.opcode, head.mask, head.payload_length);
 
         if (head.opcode == OPCODE_CLOSE)
         {
             char close_frame[2] = {OPCODE_FIN | OPCODE_CLOSE, 0};
             if (write(conn, close_frame, sizeof(close_frame)) <= 0)
-            {
                 perror("write close frame");
-            }
             printf("Connection is closed\n");
             break;
         }
         else if (head.opcode == OPCODE_PING)
         {
+            ping_counter++;
+            printf("Got PING message: %d\n", ping_counter);
             char payload_data[126] = {0}; // Max payload for control frame is 125
             if (head.payload_length > 0)
             {
@@ -324,26 +325,30 @@ int main(int argc, char *argv[])
                     perror("write PONG payload");
                     break;
                 }
+                printf("Send PONG message: %d\n", ping_counter);
             }
         }
         else
         {
             // echo head
             send_frame_head(conn, &head);
-            // read payload data
-            char payload_data[1024] = {0};
+            char payload_data[4096] = {0};
             int size = 0;
+            int data_part = 0;
             do
             {
-                int rul;
-                rul = read(conn, payload_data, 1024);
+                // read payload data
+                int rul = read(conn, payload_data, sizeof(payload_data));
                 if (rul <= 0)
                     break;
                 size += rul;
-
-                umask(payload_data, size, head.masking_key);
-                printf("recive:%s", payload_data);
-
+                data_part++;
+                umask(payload_data, rul, head.masking_key);
+                if (data_part == 1)
+                    if (rul > 128)
+                        printf("Receive: %.*s ...\n", 128, payload_data);
+                    else
+                        printf("Receive: %.*s\n", rul, payload_data);
                 // echo data
                 if (write(conn, payload_data, rul) <= 0)
                     break;
