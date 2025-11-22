@@ -7,7 +7,13 @@
 int passive_server(int port, int queue)
 {
     int server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
+    int on = 1;
+    if (setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1)
+    {
+        perror("setsockopt");
+        exit(1);
+    } 
+    
     struct sockaddr_in server_sockaddr;
     server_sockaddr.sin_family = AF_INET;
     server_sockaddr.sin_port = htons(port);
