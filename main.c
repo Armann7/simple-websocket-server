@@ -37,13 +37,14 @@
 |                     Payload Data continued ...                |
 +---------------------------------------------------------------+
 --------------------------------------------------------------------*/
-typedef struct _frame_head {
+typedef struct _frame_head
+{
     char fin;
     char opcode;
     char mask;
     unsigned long long payload_length;
     char masking_key[4];
-}frame_head;
+} frame_head;
 
 int base64_encode(char *in_str, int in_len, char *out_str)
 {
@@ -63,7 +64,7 @@ int base64_encode(char *in_str, int in_len, char *out_str)
 
     BIO_get_mem_ptr(bio, &bptr);
     memcpy(out_str, bptr->data, bptr->length);
-    out_str[bptr->length-1] = '\0';
+    out_str[bptr->length - 1] = '\0';
     size = bptr->length;
 
     BIO_free_all(bio);
@@ -78,13 +79,13 @@ int base64_encode(char *in_str, int in_len, char *out_str)
  * @param linebuf
  * @return
  */
-int _readline(char* allbuf,int level,char* linebuf)
+int _readline(char *allbuf, int level, char *linebuf)
 {
     int len = strlen(allbuf);
-    for (;level<len;++level)
+    for (; level < len; ++level)
     {
-        if(allbuf[level]=='\r' && allbuf[level+1]=='\n')
-            return level+2;
+        if (allbuf[level] == '\r' && allbuf[level + 1] == '\n')
+            return level + 2;
         else
             *(linebuf++) = allbuf[level];
     }
@@ -93,67 +94,69 @@ int _readline(char* allbuf,int level,char* linebuf)
 
 int shakehands(int cli_fd)
 {
-    //next line's point num
+    // next line's point num
     int level = 0;
-    //all request data
+    // all request data
     char buffer[BUFFER_SIZE];
-    //a line data
+    // a line data
     char linebuf[256];
-    //Sec-WebSocket-Accept
+    // Sec-WebSocket-Accept
     char sec_accept[32];
-    //sha1 data
-    unsigned char sha1_data[SHA_DIGEST_LENGTH+1]={0};
-    //reponse head buffer
+    // sha1 data
+    unsigned char sha1_data[SHA_DIGEST_LENGTH + 1] = {0};
+    // reponse head buffer
     char head[BUFFER_SIZE] = {0};
 
-    if (read(cli_fd,buffer,sizeof(buffer))<=0)
+    if (read(cli_fd, buffer, sizeof(buffer)) <= 0)
         perror("read");
     printf("request\n");
-    printf("%s\n",buffer);
+    printf("%s\n", buffer);
 
-    do {
-        memset(linebuf,0,sizeof(linebuf));
-        level = _readline(buffer,level,linebuf);
-        //printf("line:%s\n",linebuf);
+    do
+    {
+        memset(linebuf, 0, sizeof(linebuf));
+        level = _readline(buffer, level, linebuf);
+        // printf("line:%s\n",linebuf);
 
-        if (strstr(linebuf,"Sec-WebSocket-Key")!=NULL)
+        if (strstr(linebuf, "Sec-WebSocket-Key") != NULL)
         {
-            strcat(linebuf,GUID);
-//            printf("key:%s\nlen=%d\n",linebuf+19,strlen(linebuf+19));
-            SHA1((unsigned char*)&linebuf+19,strlen(linebuf+19),(unsigned char*)&sha1_data);
-//            printf("sha1:%s\n",sha1_data);
-            base64_encode(sha1_data,strlen(sha1_data),sec_accept);
-//            printf("base64:%s\n",sec_accept);
+            strcat(linebuf, GUID);
+            //            printf("key:%s\nlen=%d\n",linebuf+19,strlen(linebuf+19));
+            SHA1((unsigned char *)&linebuf + 19, strlen(linebuf + 19), (unsigned char *)&sha1_data);
+            //            printf("sha1:%s\n",sha1_data);
+            base64_encode(sha1_data, strlen(sha1_data), sec_accept);
+            //            printf("base64:%s\n",sec_accept);
             /* write the response */
-            sprintf(head, "HTTP/1.1 101 Switching Protocols\r\n" \
-                          "Upgrade: websocket\r\n" \
-                          "Connection: Upgrade\r\n" \
-                          "Sec-WebSocket-Accept: %s\r\n" \
-                          "\r\n",sec_accept);
+            sprintf(head, "HTTP/1.1 101 Switching Protocols\r\n"
+                          "Upgrade: websocket\r\n"
+                          "Connection: Upgrade\r\n"
+                          "Sec-WebSocket-Accept: %s\r\n"
+                          "\r\n",
+                    sec_accept);
 
             printf("response\n");
-            printf("%s",head);
-            if (write(cli_fd,head,strlen(head))<0)
+            printf("%s", head);
+            if (write(cli_fd, head, strlen(head)) < 0)
                 perror("write");
 
             break;
         }
-    }while((buffer[level]!='\r' || buffer[level+1]!='\n') && level!=-1);
+    } while ((buffer[level] != '\r' || buffer[level + 1] != '\n') && level != -1);
     return 0;
 }
 
-int recv_frame_head(int fd,frame_head* head)
+int recv_frame_head(int fd, frame_head *head)
 {
     char one_char;
     /*read fin and op code*/
-    if (read(fd,&one_char,1)<=0)
+    if (read(fd, &one_char, 1) <= 0)
     {
         perror("read fin");
         return -1;
     }
     head->fin = (one_char & 0x80) == 0x80;
     head->opcode = one_char & 0x0F;
-    if (read(fd,&one_char,1)<=0)
+    if (read(fd, &one_char, 1) <= 0)
     {
         perror("read mask");
         return -1;
@@ -166,33 +169,33 @@ int recv_frame_head(int fd,frame_head* head)
     if (head->payload_length == 126)
     {
         char extern_len[2];
-        if (read(fd,extern_len,2)<=0)
+        if (read(fd, extern_len, 2) <= 0)
         {
             perror("read extern_len");
             return -1;
         }
-        head->payload_length = (extern_len[0]&0xFF) << 8 | (extern_len[1]&0xFF);
+        head->payload_length = (extern_len[0] & 0xFF) << 8 | (extern_len[1] & 0xFF);
     }
     else if (head->payload_length == 127)
     {
-        char extern_len[8],temp;
+        char extern_len[8], temp;
         int i;
-        if (read(fd,extern_len,8)<=0)
+        if (read(fd, extern_len, 8) <= 0)
         {
             perror("read extern_len");
             return -1;
         }
-        for(i=0;i<4;i++)
+        for (i = 0; i < 4; i++)
         {
             temp = extern_len[i];
-            extern_len[i] = extern_len[7-i];
-            extern_len[7-i] = temp;
+            extern_len[i] = extern_len[7 - i];
+            extern_len[7 - i] = temp;
         }
-        memcpy(&(head->payload_length),extern_len,8);
+        memcpy(&(head->payload_length), extern_len, 8);
     }
 
     /*read masking-key*/
-    if (read(fd,head->masking_key,4)<=0)
+    if (read(fd, head->masking_key, 4) <= 0)
     {
         perror("read masking-key");
         return -1;
@@ -208,27 +211,27 @@ int recv_frame_head(int fd,frame_head* head)
  * @param len
  * @param mask
  */
-void umask(char *data,int len,char *mask)
+void umask(char *data, int len, char *mask)
 {
     int i;
-    for (i=0;i<len;++i)
-        *(data+i) ^= *(mask+(i%4));
+    for (i = 0; i < len; ++i)
+        *(data + i) ^= *(mask + (i % 4));
 }
 
-int send_frame_head(int fd,frame_head* head)
+int send_frame_head(int fd, frame_head *head)
 {
     char *response_head;
     int head_length = 0;
-    if(head->payload_length<126)
+    if (head->payload_length < 126)
     {
-        response_head = (char*)malloc(2);
+        response_head = (char *)malloc(2);
         response_head[0] = 0x81;
         response_head[1] = head->payload_length;
         head_length = 2;
     }
-    else if (head->payload_length<0xFFFF)
+    else if (head->payload_length < 0xFFFF)
     {
-        response_head = (char*)malloc(4);
+        response_head = (char *)malloc(4);
         response_head[0] = 0x81;
         response_head[1] = 126;
         response_head[2] = (head->payload_length >> 8 & 0xFF);
@@ -237,16 +240,16 @@ int send_frame_head(int fd,frame_head* head)
     }
     else
     {
-        //no code
-        response_head = (char*)malloc(12);
-//        response_head[0] = 0x81;
-//        response_head[1] = 127;
-//        response_head[2] = (head->payload_length >> 8 & 0xFF);
-//        response_head[3] = (head->payload_length & 0xFF);
+        // no code
+        response_head = (char *)malloc(12);
+        //        response_head[0] = 0x81;
+        //        response_head[1] = 127;
+        //        response_head[2] = (head->payload_length >> 8 & 0xFF);
+        //        response_head[3] = (head->payload_length & 0xFF);
         head_length = 12;
     }
 
-    if(write(fd,response_head,head_length)<=0)
+    if (write(fd, response_head, head_length) <= 0)
     {
         perror("write head");
         return -1;
@@ -258,16 +261,17 @@ int send_frame_head(int fd,frame_head* head)
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) {
+    if (argc < 2)
+    {
         printf("Usage: %s <port>\n", argv[0]);
         return 1;
     }
-    int port = atoi(argv[1]);                                                                                                                                                                 
+    int port = atoi(argv[1]);
     int ser_fd = passive_server(port, 20);
 
     struct sockaddr_in client_addr;
     socklen_t addr_length = sizeof(client_addr);
-    int conn = accept(ser_fd,(struct sockaddr*)&client_addr, &addr_length);
+    int conn = accept(ser_fd, (struct sockaddr *)&client_addr, &addr_length);
 
     shakehands(conn);
 
@@ -275,15 +279,18 @@ int main(int argc, char *argv[])
     while (count--)
     {
         frame_head head;
-        int rul = recv_frame_head(conn,&head);
+        int rul = recv_frame_head(conn, &head);
         if (rul < 0)
             break;
-        printf("fin=%d\nopcode=0x%X\nmask=%d\npayload_len=%llu\n",head.fin,head.opcode,head.mask,head.payload_length);
+        printf("fin=%d\nopcode=0x%X\nmask=%d\npayload_len=%llu\n", head.fin, head.opcode, head.mask, head.payload_length);
 
-        if (head.opcode == OPCODE_PING) {
+        if (head.opcode == OPCODE_PING)
+        {
             char payload_data[126] = {0}; // Max payload for control frame is 125
-            if (head.payload_length > 0) {
-                if (read(conn, payload_data, head.payload_length) <= 0) {
+            if (head.payload_length > 0)
+            {
+                if (read(conn, payload_data, head.payload_length) <= 0)
+                {
                     perror("read PING payload");
                     break;
                 }
@@ -294,40 +301,45 @@ int main(int argc, char *argv[])
             pong_header[0] = OPCODE_FIN | OPCODE_PONG;
             pong_header[1] = (char)head.payload_length;
 
-            if (write(conn, pong_header, 2) <= 0) {
+            if (write(conn, pong_header, 2) <= 0)
+            {
                 perror("write PONG header");
                 break;
             }
 
-            if (head.payload_length > 0) {
-                if (write(conn, payload_data, head.payload_length) <= 0) {
+            if (head.payload_length > 0)
+            {
+                if (write(conn, payload_data, head.payload_length) <= 0)
+                {
                     perror("write PONG payload");
                     break;
                 }
             }
-        } else {
-            //echo head
-            send_frame_head(conn,&head);
-            //read payload data
+        }
+        else
+        {
+            // echo head
+            send_frame_head(conn, &head);
+            // read payload data
             char payload_data[1024] = {0};
             int size = 0;
-            do {
+            do
+            {
                 int rul;
-                rul = read(conn,payload_data,1024);
-                if (rul<=0)
+                rul = read(conn, payload_data, 1024);
+                if (rul <= 0)
                     break;
-                size+=rul;
+                size += rul;
 
-                umask(payload_data,size,head.masking_key);
-                printf("recive:%s",payload_data);
+                umask(payload_data, size, head.masking_key);
+                printf("recive:%s", payload_data);
 
-                //echo data
-                if (write(conn,payload_data,rul)<=0)
+                // echo data
+                if (write(conn, payload_data, rul) <= 0)
                     break;
-            }while(size<head.payload_length);
+            } while (size < head.payload_length);
         }
         printf("\n-----------\n");
-
     }
 
     close(conn);
