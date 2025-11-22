@@ -13,6 +13,10 @@
 #define BUFFER_SIZE 1024
 #define RESPONSE_HEADER_LEN_MAX 1024
 #define GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+#define OPCODE_FIN 0x80
+#define OPCODE_PING 0x9
+#define OPCODE_PONG 0xA
+
 /*-------------------------------------------------------------------
 0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -276,25 +280,52 @@ int main(int argc, char *argv[])
             break;
         printf("fin=%d\nopcode=0x%X\nmask=%d\npayload_len=%llu\n",head.fin,head.opcode,head.mask,head.payload_length);
 
-        //echo head
-        send_frame_head(conn,&head);
-        //read payload data
-        char payload_data[1024] = {0};
-        int size = 0;
-        do {
-            int rul;
-            rul = read(conn,payload_data,1024);
-            if (rul<=0)
-                break;
-            size+=rul;
+        if (head.opcode == OPCODE_PING) {
+            char payload_data[126] = {0}; // Max payload for control frame is 125
+            if (head.payload_length > 0) {
+                if (read(conn, payload_data, head.payload_length) <= 0) {
+                    perror("read PING payload");
+                    break;
+                }
+                umask(payload_data, head.payload_length, head.masking_key);
+            }
 
-            umask(payload_data,size,head.masking_key);
-            printf("recive:%s",payload_data);
+            char pong_header[2];
+            pong_header[0] = OPCODE_FIN | OPCODE_PONG;
+            pong_header[1] = (char)head.payload_length;
 
-            //echo data
-            if (write(conn,payload_data,rul)<=0)
+            if (write(conn, pong_header, 2) <= 0) {
+                perror("write PONG header");
                 break;
-        }while(size<head.payload_length);
+            }
+
+            if (head.payload_length > 0) {
+                if (write(conn, payload_data, head.payload_length) <= 0) {
+                    perror("write PONG payload");
+                    break;
+                }
+            }
+        } else {
+            //echo head
+            send_frame_head(conn,&head);
+            //read payload data
+            char payload_data[1024] = {0};
+            int size = 0;
+            do {
+                int rul;
+                rul = read(conn,payload_data,1024);
+                if (rul<=0)
+                    break;
+                size+=rul;
+
+                umask(payload_data,size,head.masking_key);
+                printf("recive:%s",payload_data);
+
+                //echo data
+                if (write(conn,payload_data,rul)<=0)
+                    break;
+            }while(size<head.payload_length);
+        }
         printf("\n-----------\n");
 
     }
