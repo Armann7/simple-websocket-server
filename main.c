@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
         int rul = recv_frame_head(conn, &head);
         if (rul < 0)
             break;
-        printf("fin=%d\nopcode=0x%X\nmask=%d\npayload_len=%llu\n", head.fin, head.opcode, head.mask, head.payload_length);
+        printf("fin=%d, opcode=0x%X, mask=%d, payload_len=%llu\n", head.fin, head.opcode, head.mask, head.payload_length);
 
         if (head.opcode == OPCODE_PING)
         {
@@ -339,9 +339,8 @@ int main(int argc, char *argv[])
                     break;
             } while (size < head.payload_length);
         }
-        printf("\n-----------\n");
     }
-
+    printf("-----------\n");
     close(conn);
     close(ser_fd);
 }
